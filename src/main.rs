@@ -1,11 +1,7 @@
-use std::vec;
+use std::f32::consts::PI;
 
-use eframe::{
-    egui,
-    wgpu::{Color, naga::Range, wgc::id},
-};
-use egui::{Color32, Pos2, Stroke};
-use egui_plot::{Line, Plot, PlotItem, PlotPoint, PlotPoints, Points};
+use eframe::egui;
+use egui::Pos2;
 
 fn main() {
     let native_options = eframe::NativeOptions::default();
@@ -18,23 +14,49 @@ fn main() {
 
 #[derive(Default)]
 struct VisualizerApp {
-    x: f32,
-    y: f32,
-    t: i32,
+    amplitude: f32,
+    frequency: f32,
+    phase: f32,
+    period: i32, //time
+    color: egui::Color32,
 }
 
 impl VisualizerApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        Self::default()
+        Self {
+            amplitude: 20.0,
+            frequency: 30.0,
+            phase: 2.0,
+            period: 2000,
+            color: egui::Color32::RED,
+        }
     }
 }
 
 impl eframe::App for VisualizerApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         egui::Panel::left("controls").show_inside(ui, |ui| {
-            ui.add(egui::Slider::new(&mut self.x, 0.0..=1000.0).text("X offset"));
-            ui.add(egui::Slider::new(&mut self.y, 0.0..=1000.0).text("Amplitude"));
-            ui.add(egui::Slider::new(&mut self.t, 10..=2000).text("Points"));
+            ui.add(
+                egui::Slider::new(&mut self.amplitude, 0.0..=1000.0)
+                    .text("Amplitude")
+                    .step_by(1.0),
+            );
+            ui.add(
+                egui::Slider::new(&mut self.frequency, 0.0..=1000.0)
+                    .text("Frequency")
+                    .step_by(1.0),
+            );
+            ui.add(
+                egui::Slider::new(&mut self.phase, 0.0..=2.0)
+                    .text("Phase")
+                    .step_by(0.05),
+            );
+            ui.add(
+                egui::Slider::new(&mut self.period, 1..=2000)
+                    .text("Period")
+                    .step_by(1.0),
+            );
+            ui.color_edit_button_srgba(&mut self.color);
         });
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
@@ -43,35 +65,23 @@ impl eframe::App for VisualizerApp {
 
             let width = rect.width();
             let height = rect.height();
+            let center_y = height / 2.0;
 
             let mut points = Vec::new();
 
-            for i in 0..self.t {
-                let t_norm = i as f32 / (self.t - 1) as f32; // 0 → 1
+            for i in 0..self.period {
+                let t = i as f32 / (self.period - 1) as f32;
 
-                // X goes across full width
-                let x_screen = rect.left() + t_norm * width;
-                //let y_screen = height/2;
+                let x = t * width * 2.0;
 
-                // Your sine function (data space)
-                let x_data = t_norm * std::f32::consts::TAU * 2.0; // 2 periods
-                let y_data = x_data.sin();
-
-                // Map [-1, 1] → [0, 1]
-                let y_norm = (y_data + 1.0) * 0.5;
-
-                // Flip Y (because screen Y grows downward)
-                let y_screen = rect.bottom() - y_norm * height / 2.0;
-
-                points.push(egui::Pos2 {
-                    x: x_screen + self.x,           // optional offset
-                    y: y_screen + (self.y - 500.0), // amplitude-ish offset
-                });
+                let angle = t * self.frequency * self.phase * PI;
+                let y = center_y + (angle.sin() * self.amplitude);
+                points.push(Pos2 { x, y });
             }
 
             painter.add(egui::Shape::line(
                 points,
-                egui::Stroke::new(2.0, egui::Color32::RED),
+                egui::Stroke::new(2.0, self.color),
             ));
         });
     }
